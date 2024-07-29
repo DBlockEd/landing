@@ -10,17 +10,16 @@ let contract: ethers.Contract | null = null;
 function initializeContract() {
     if (!provider || !signer || !contract) {
         const privateKey = process.env.PRIVATE_KEY;
-        const rpcUrl = process.env.HOLESKY_RPC_URL;
+        const rpcUrl = process.env.SEPOLIA_RPC_URL;
 
         if (!privateKey || !rpcUrl) {
-            throw new Error('Missing environment variables: PRIVATE_KEY or HOLESKY_RPC_URL');
+            throw new Error('Missing environment variables: PRIVATE_KEY or SEPOLIA_RPC_URL');
         }
 
         provider = new ethers.providers.JsonRpcProvider({
             url: rpcUrl,
             skipFetchSetup: true,
         });
-
         signer = new ethers.Wallet(privateKey, provider);
         contract = new ethers.Contract(address, abi, signer);
     }
@@ -30,12 +29,13 @@ async function verify(userAddress: string) {
     try {
         initializeContract();
 
-        const isVerified = await contract!.isAddressAllowed(userAddress);
-        
-        if (isVerified) {
-            return NextResponse.json({ message: 'Address is verified' });
+        const [canWithdrawResult, reason, lastWithdrawalTime] = await contract!.canWithdraw(userAddress);
+        const withdrawalDelay = await contract!.withdrawalDelay();
+
+        if (canWithdrawResult) {
+            return NextResponse.json({ message: 'Address is allowed to withdraw', lastWithdrawalTime, withdrawalDelay });
         } else {
-            return NextResponse.json({ message: 'Address is not verified' });
+            return NextResponse.json({ message: reason, lastWithdrawalTime, withdrawalDelay });
         }
     } catch (error) {
         console.error('Error during verification:', error);
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         const body = await req.json();
         const userAddress = body.address;
 
-        return verify(userAddress);
+        return await verify(userAddress);
     } catch (error) {
         console.error('Error processing request:', error);
         return NextResponse.json({ message: (error as Error).message }, { status: 500 });

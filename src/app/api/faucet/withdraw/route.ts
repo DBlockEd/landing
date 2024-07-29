@@ -10,17 +10,16 @@ let contract: ethers.Contract | null = null;
 function initializeContract() {
     if (!provider || !signer || !contract) {
         const privateKey = process.env.PRIVATE_KEY;
-        const rpcUrl = process.env.HOLESKY_RPC_URL;
+        const rpcUrl = process.env.SEPOLIA_RPC_URL;
 
         if (!privateKey || !rpcUrl) {
-            throw new Error('Missing environment variables: PRIVATE_KEY or HOLESKY_RPC_URL');
+            throw new Error('Missing environment variables: PRIVATE_KEY or SEPOLIA_RPC_URL');
         }
 
         provider = new ethers.providers.JsonRpcProvider({
             url: rpcUrl,
             skipFetchSetup: true,
         });
-
         signer = new ethers.Wallet(privateKey, provider);
         contract = new ethers.Contract(address, abi, signer);
     }
@@ -30,7 +29,7 @@ async function withdraw(userAddress: string) {
     try {
         initializeContract();
 
-        const tx = await contract!.withdraw(userAddress, ethers.utils.parseEther('0.1'));
+        const tx = await contract!.withdraw(userAddress);
         await provider!.waitForTransaction(tx.hash);
 
         return NextResponse.json({ message: 'Tokens withdrawn successfully', txHash: tx.hash });
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
         const body = await req.json();
         const userAddress = body.address;
 
-        return withdraw(userAddress);
+        return await withdraw(userAddress);
     } catch (error) {
         console.error('Error processing request:', error);
         return NextResponse.json({ message: (error as Error).message }, { status: 500 });
